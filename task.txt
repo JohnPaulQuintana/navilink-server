@@ -1,0 +1,12 @@
+Authentication - completed
+
+Pending:
+category Module
+
+
+COMMAND:
+Creating migration file
+php artisan make:migration create_categories_table
+php artisan make:migration add_system_and_visibility_to_categories_table
+Creating RequestFrom
+php artisan make:request CategoryRequest

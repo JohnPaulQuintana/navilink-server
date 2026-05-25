@@ -1,0 +1,384 @@
+1. Create Project
+    composer create-project laravel/laravel navilink-server
+
+    Enter project:
+    cd navilink-server
+
+    Configure MySQL on .env
+    DB_CONNECTION=mysql
+    DB_HOST=127.0.0.1
+    DB_PORT=3306
+    DB_DATABASE=navilink
+    DB_USERNAME=root
+    DB_PASSWORD=
+
+    Install JWT Package
+    composer require tymon/jwt-auth
+
+    Publish config:
+    php artisan vendor:publish --provider="Tymon\JWTAuth\Providers\LaravelServiceProvider"
+
+    Generate JWT secret:
+    php artisan jwt:secret
+
+    This adds: JWT_SECRET=xxxxxxxx
+
+    Configure API Auth Guard
+    Open:
+    config/auth.php
+
+    Replace API guard with:
+    'guards' => [
+    'api' => [
+        'driver' => 'jwt',
+            'provider' => 'users',
+        ],
+    ],
+
+    User Model
+    Open app/Models/User.php
+    Replace with:
+    namespace App\Models;
+
+    use Illuminate\Foundation\Auth\User as Authenticatable;
+    use Illuminate\Database\Eloquent\Factories\HasFactory;
+    use Tymon\JWTAuth\Contracts\JWTSubject;
+
+    class User extends Authenticatable implements JWTSubject
+    {
+        use HasFactory;
+
+        protected $fillable = [
+            'email',
+            'password',
+            'full_name',
+            'is_verified',
+            'onboarding_status',
+        ];
+
+        protected $hidden = [
+            'password',
+        ];
+
+        public function getJWTIdentifier()
+        {
+            return $this->getKey();
+        }
+
+        public function getJWTCustomClaims()
+        {
+            return [];
+        }
+    }
+
+    Create Models
+    php artisan make:model Otp -m
+    php artisan make:model Session -m
+    php artisan make:model PasswordReset -m
+    php artisan make:model Subscription -m
+    php artisan make:model SubscriptionPlan -m
+
+    Users Migration
+    database/migrations/xxxx_create_users_table.php
+    Schema::create('users', function (Blueprint $table) {
+        $table->id();
+
+        $table->string('email')->unique();
+
+        $table->string('password');
+
+        $table->string('full_name');
+
+        $table->boolean('is_verified')
+            ->default(false);
+
+        $table->string('onboarding_status')
+            ->default('pending');
+
+        $table->timestamps();
+    });
+
+    OTP Migration
+    Schema::create('otps', function (Blueprint $table) {
+        $table->id();
+
+        $table->string('email');
+
+        $table->string('code_hash');
+
+        $table->timestamp('expires_at');
+
+        $table->timestamps();
+    });
+
+    Sessions Migration
+    Schema::create('sessions', function (Blueprint $table) {
+        $table->id();
+
+        $table->foreignId('user_id')
+            ->constrained()
+            ->cascadeOnDelete();
+
+        $table->text('refresh_token');
+
+        $table->timestamp('expires_at');
+
+        $table->string('device_name')->nullable();
+
+        $table->string('ip_address')->nullable();
+
+        $table->text('user_agent')->nullable();
+
+        $table->timestamp('last_used_at')->nullable();
+
+        $table->timestamps();
+    });
+
+    Run Migrations
+    php artisan migrate
+
+    Create Auth Controller
+    php artisan make:controller Api/Auth/AuthController
+
+    Login Example (Laravel JWT)
+    use Illuminate\Support\Facades\Auth;
+
+    public function login(Request $request)
+    {
+        $credentials = $request->only('email', 'password');
+
+        if (!$token = Auth::guard('api')->attempt($credentials)) {
+
+            return response()->json([
+                'message' => 'Invalid credentials'
+            ], 401);
+        }
+
+        return response()->json([
+            'accessToken' => $token,
+            'user' => Auth::guard('api')->user(),
+        ]);
+    }
+
+    Auth Routes
+    Open:
+    routes/api.php
+    Route::prefix('auth')->group(function () {
+
+        Route::post('/register', [AuthController::class, 'register']);
+
+        Route::post('/login', [AuthController::class, 'login']);
+
+        Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
+
+        Route::post('/refresh', [AuthController::class, 'refresh']);
+
+        Route::post('/logout', [AuthController::class, 'logout']);
+
+        Route::middleware('auth:api')->group(function () {
+
+            Route::get('/me', [AuthController::class, 'me']);
+
+        });
+    });
+
+
+
+    Using Queue
+    public function createLink(array $data)
+{
+    $user_id = Auth::id();
+
+    $url = $data['url'] ?? null;
+    $category_id = $data['category_id'] ?? null;
+
+    if (! $url) {
+        throw new ApiException(
+            'Please submit a valid url',
+            400
+        );
+    }
+
+    if (! $category_id) {
+        throw new ApiException(
+            'Category not found',
+            404
+        );
+    }
+
+    if (! $user_id) {
+        throw new ApiException(
+            'Unauthorized request',
+            401
+        );
+    }
+
+    $category = Category::where('id', $category_id)
+        ->where('user_id', $user_id)
+        ->first();
+
+    if (! $category) {
+        throw new ApiException(
+            'Category does not exist',
+            404
+        );
+    }
+
+    $normalizedUrl = strtolower(trim($url));
+
+    $existingLink = Link::where('user_id', $user_id)
+        ->whereRaw('LOWER(url) = ?', [$normalizedUrl])
+        ->first();
+
+    if ($existingLink) {
+        throw new ApiException(
+            'Link already exists',
+            409
+        );
+    }
+
+    // CREATE PLACEHOLDER LINK
+    $link = Link::create([
+        'user_id' => $user_id,
+        'category_id' => $category_id,
+
+        'title' => 'Fetching preview...',
+        'url' => $url,
+
+        'description' => null,
+        'image' => null,
+        'favicon' => null,
+        'domain' => parse_url($url, PHP_URL_HOST),
+
+        'platform' => null,
+        'safety_status' => 'unknown',
+
+        'issynced' => false,
+        'visited_date' => now(),
+    ]);
+
+    // DISPATCH SCRAPER JOB
+    ScrapeLinkJob::dispatch($link->id);
+
+    return [
+        'success' => true,
+        'message' => 'Link created successfully',
+        'data' => $link,
+    ];
+}
+
+Then create:
+php artisan make:job ScrapeLinkJob
+
+Inside ScrapeLinkJob.php:
+<?php
+
+namespace App\Jobs;
+
+use App\Models\Link;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+
+class ScrapeLinkJob implements ShouldQueue
+{
+    use Queueable;
+
+    public function __construct(
+        public int $linkId
+    ) {}
+
+    public function handle(): void
+    {
+        $link = Link::find($this->linkId);
+
+        if (! $link) {
+            return;
+        }
+
+        $response = Http::timeout(120)
+            ->connectTimeout(30)
+            ->retry(2, 5000)
+            ->post(
+                env('SCRAPER_API').'/link',
+                [
+                    'url' => $link->url,
+                ]
+            );
+
+        if (! $response->successful()) {
+            return;
+        }
+
+        $scraped = $response->json('data');
+
+        if (! empty($scraped['image']) &&
+            str_contains($scraped['image'], 'base64')) {
+
+            $image = $scraped['image'];
+
+            $image = str_replace(
+                'data:image/png;base64,',
+                '',
+                $image
+            );
+
+            $image = str_replace(
+                'data:image/jpeg;base64,',
+                '',
+                $image
+            );
+
+            $image = str_replace(' ', '+', $image);
+
+            $imageName = 'links/'.uniqid().'.png';
+
+            Storage::disk('public')->put(
+                $imageName,
+                base64_decode($image)
+            );
+
+            $imagePath = $imageName;
+
+        } else {
+            $imagePath = $scraped['image'] ?? null;
+        }
+
+        $link->update([
+            'title' => $scraped['title'] ?? 'Untitled',
+            'url' => $scraped['url'] ?? $link->url,
+
+            'description' => $scraped['description'] ?? null,
+            'image' => $imagePath,
+            'favicon' => $scraped['favicon'] ?? null,
+            'domain' => $scraped['domain'] ?? null,
+
+            'platform' => $scraped['platform'] ?? null,
+            'safety_status' => $scraped['safety_status'] ?? 'unknown',
+
+            'issynced' => true,
+        ]);
+    }
+}
+
+Then enable queues:
+
+QUEUE_CONNECTION=database
+
+php artisan queue:table
+php artisan migrate
+
+
+php artisan queue:work
+Before:
+
+user waits 60–120 seconds
+
+After:
+
+response in <1 second
+scraper works in background
+Render cold starts no longer matter to UX
+
+This is the correct production architecture for NaviLink.
