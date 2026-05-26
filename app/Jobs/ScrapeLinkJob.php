@@ -2,14 +2,18 @@
 
 namespace App\Jobs;
 
+use App\Models\Link;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Storage;
-use App\Models\Link;
+
 class ScrapeLinkJob implements ShouldQueue
 {
     use Queueable;
+
+    public $timeout = 30;
+
+    public $tries = 2;
 
     /**
      * Create a new job instance.
@@ -30,11 +34,10 @@ class ScrapeLinkJob implements ShouldQueue
             return;
         }
 
-        $response = Http::timeout(120)
-            ->connectTimeout(30)
-            ->retry(2, 5000)
+        $response = Http::timeout(20)
+            ->connectTimeout(10)
+            ->retry(1, 3000)
             ->post(
-                // env('SCRAPER_API').'/link',
                 'https://linkvault-api-tuna.onrender.com/api/v1/scrapper/link',
                 [
                     'url' => $link->url,
@@ -47,44 +50,12 @@ class ScrapeLinkJob implements ShouldQueue
 
         $scraped = $response->json('data');
 
-        if (! empty($scraped['image']) &&
-            str_contains($scraped['image'], 'base64')) {
-
-            $image = $scraped['image'];
-
-            $image = str_replace(
-                'data:image/png;base64,',
-                '',
-                $image
-            );
-
-            $image = str_replace(
-                'data:image/jpeg;base64,',
-                '',
-                $image
-            );
-
-            $image = str_replace(' ', '+', $image);
-
-            $imageName = 'links/'.uniqid().'.png';
-
-            Storage::disk('public')->put(
-                $imageName,
-                base64_decode($image)
-            );
-
-            $imagePath = $imageName;
-
-        } else {
-            $imagePath = $scraped['image'] ?? null;
-        }
-
         $link->update([
             'title' => $scraped['title'] ?? 'Untitled',
             'url' => $scraped['url'] ?? $link->url,
 
             'description' => $scraped['description'] ?? null,
-            'image' => $imagePath,
+            'image' => $scraped['image'] ?? null,
             'favicon' => $scraped['favicon'] ?? null,
             'domain' => $scraped['domain'] ?? null,
 
