@@ -102,7 +102,7 @@ class LinkService
 
 
             try {
-                $response = Http::timeout(20)
+                $response = Http::timeout(120)
                     ->connectTimeout(10)
                     ->retry(1, 2000)
                     ->post(
