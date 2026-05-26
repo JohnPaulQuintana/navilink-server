@@ -7,6 +7,7 @@ use App\Jobs\ScrapeLinkJob;
 use App\Models\Category;
 use App\Models\Link;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 
 class LinkService
 {
@@ -97,8 +98,37 @@ class LinkService
         }
 
         // DISPATCH SCRAPER JOB
-        ScrapeLinkJob::dispatch($link->id);
+        // ScrapeLinkJob::dispatch($link->id);
 
+
+            try {
+                $response = Http::timeout(20)
+                    ->connectTimeout(10)
+                    ->retry(1, 2000)
+                    ->post(
+                        'https://linkvault-api-tuna.onrender.com/api/v1/scrapper/link',
+                        [
+                            'url' => $url,
+                        ]
+                    );
+
+                if ($response->successful()) {
+                    $scraped = $response->json('data');
+
+                    $link->update([
+                        'title' => $scraped['title'] ?? 'Untitled',
+                        'description' => $scraped['description'] ?? null,
+                        'image' => $scraped['image'] ?? null,
+                        'favicon' => $scraped['favicon'] ?? null,
+                        'domain' => $scraped['domain'] ?? null,
+                        'platform' => $scraped['platform'] ?? null,
+                        'safety_status' => $scraped['safety_status'] ?? 'unknown',
+                        'issynced' => true,
+                    ]);
+                }
+            } catch (\Exception $e) {
+                // fail silently, keep placeholder link
+            }
         return [
             'success' => true,
             'message' => 'Link created successfully',
