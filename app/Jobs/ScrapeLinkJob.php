@@ -11,9 +11,9 @@ class ScrapeLinkJob implements ShouldQueue
 {
     use Queueable;
 
-    public $timeout = 30;
+    public $timeout = 120;
 
-    public $tries = 2;
+    public $tries = 3;
 
     /**
      * Create a new job instance.
