@@ -15,6 +15,10 @@ class LinkService
         $user_id = Auth::id();
 
         $url = $data['url'] ?? null;
+
+        if (! filter_var($url, FILTER_VALIDATE_URL)) {
+            throw new ApiException('Invalid URL format', 422);
+        }
         $category_id = $data['category_id'] ?? null;
 
         if (! $url) {
@@ -49,7 +53,13 @@ class LinkService
             );
         }
 
-        $normalizedUrl = strtolower(trim($url));
+        $url = trim($url);
+
+        if (! str_starts_with($url, 'http')) {
+            $url = 'https://'.$url;
+        }
+
+        $normalizedUrl = strtolower($url);
 
         $existingLink = Link::where('user_id', $user_id)
             ->whereRaw('LOWER(url) = ?', [$normalizedUrl])
@@ -73,7 +83,7 @@ class LinkService
             'description' => null,
             'image' => null,
             'favicon' => null,
-            'domain' => parse_url($url, PHP_URL_HOST),
+            'domain' => parse_url($url, PHP_URL_HOST) ?? null,
 
             'platform' => null,
             'safety_status' => 'unknown',
@@ -81,6 +91,10 @@ class LinkService
             'issynced' => false,
             'visited_date' => now(),
         ]);
+
+        if (! filter_var($url, FILTER_VALIDATE_URL)) {
+            throw new ApiException('Invalid URL cannot be processed', 422);
+        }
 
         // DISPATCH SCRAPER JOB
         ScrapeLinkJob::dispatch($link->id);
