@@ -34,7 +34,8 @@ class ScrapeLinkJob implements ShouldQueue
             ->connectTimeout(30)
             ->retry(2, 5000)
             ->post(
-                env('SCRAPER_API').'/link',
+                // env('SCRAPER_API').'/link',
+                'https://linkvault-api-tuna.onrender.com/api/v1/scrapper/link',
                 [
                     'url' => $link->url,
                 ]
