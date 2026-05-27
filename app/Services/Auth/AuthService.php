@@ -29,7 +29,7 @@ class AuthService
 
         return $user;
     }
-    
+
     // Registration Service
     public function register(array $data)
     {
@@ -217,15 +217,17 @@ class AuthService
 
         // 2. Cooldown check (60 seconds)
         $lastReset = PasswordReset::where('user_id', $user->id)
-            ->latest()
+            ->latest('created_at')
             ->first();
 
         if ($lastReset) {
-            $diff = now()->diffInSeconds($lastReset->created_at);
+            $secondsPassed = $lastReset->created_at->diffInSeconds(now());
 
-            if ($diff < 60) {
+            if ($secondsPassed < 60) {
+                $remaining = 60 - $secondsPassed;
+
                 throw new ApiException(
-                    'Please wait 60 seconds before requesting another code',
+                    "Please wait {$remaining} seconds before requesting another code",
                     429
                 );
             }
@@ -246,7 +248,7 @@ class AuthService
             'email' => $user->email,
             'otp' => $hashedOtp,
             'expires_at' => now()->addMinutes(5),
-            'created_at' => now(),
+            // 'created_at' => now(),
         ]);
 
         // 7. Send email
