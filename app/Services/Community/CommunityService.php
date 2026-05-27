@@ -3,7 +3,6 @@
 namespace App\Services\Community;
 
 use App\Models\Category;
-use App\Exceptions\ApiException;
 
 class CommunityService
 {
@@ -11,38 +10,37 @@ class CommunityService
     {
         $categories = Category::with([
             'author:id,full_name',
-
             'links' => function ($query) {
                 $query->select(
-                        'id',
-                        'category_id',
-                        'title',
-                        'url',
-                        'description',
-                        'image',
-                        'domain',
-                        'safety_status',
-                        'created_at'
-                    )
+                    'id',
+                    'category_id',
+                    'title',
+                    'url',
+                    'description',
+                    'image',
+                    'domain',
+                    'safety_status',
+                    'created_at'
+                )
                     ->where('safety_status', 'safe')
                     ->latest();
-            }
+            },
         ])
-        ->select(
-            'id',
-            'user_id',
-            'name',
-            'icon',
-            'published',
-            'created_at'
-        )
-        ->where('published', 'public')
-        ->latest()
-        ->get();
+            ->select(
+                'id',
+                'user_id',
+                'name',
+                'icon',
+                'published',
+                'created_at'
+            )
+            ->whereRaw('LOWER(published) = ?', ['public'])
+            ->latest()
+            ->get();
 
         return [
             'success' => true,
-            'data' => $categories
+            'data' => $categories,
         ];
     }
 }

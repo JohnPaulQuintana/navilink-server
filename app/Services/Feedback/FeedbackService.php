@@ -6,7 +6,7 @@ use App\Exceptions\ApiException;
 use App\Models\Feedback;
 use Illuminate\Support\Facades\Auth;
 
-class FeedBackService
+class FeedbackService
 {
     /**
      * CREATE FEEDBACK

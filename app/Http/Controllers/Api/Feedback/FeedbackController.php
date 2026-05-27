@@ -4,13 +4,13 @@ namespace App\Http\Controllers\Api\Feedback;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Feedback\FeedbackRequest;
-use App\Services\Feedback\FeedBackService;
+use App\Services\Feedback\FeedbackService;
 use Illuminate\Http\Request;
 
 class FeedbackController extends Controller
 {
     public function __construct(
-        protected FeedBackService $feedbackService
+        protected FeedbackService $feedbackService
     ) {}
 
     /**
