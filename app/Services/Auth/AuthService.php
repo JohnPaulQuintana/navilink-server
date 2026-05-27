@@ -224,7 +224,7 @@ class AuthService
             $secondsPassed = $lastReset->created_at->diffInSeconds(now());
 
             if ($secondsPassed < 60) {
-                $remaining = 60 - $secondsPassed;
+                $remaining = max(0, (int) ceil(60 - $secondsPassed));
 
                 throw new ApiException(
                     "Please wait {$remaining} seconds before requesting another code",
