@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Category\CategoryController;
 use App\Http\Controllers\Api\Community\CommunityController;
 use App\Http\Controllers\Api\Feedback\FeedbackController;
 use App\Http\Controllers\Api\Link\LinkController;
+use App\Http\Controllers\Api\Onboarding\OnboardingController;
 use App\Http\Controllers\Api\Profile\ProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -64,7 +65,7 @@ Route::prefix('auth')->group(function () {
             AuthController::class,
             'me',
         ]);
-
+        
         // Completed
         Route::post('/logout', [
             AuthController::class,
@@ -113,4 +114,12 @@ Route::prefix('feedback')->group(function () {
         Route::post('/create', [FeedbackController::class, 'create']);
         Route::get('/stats', [FeedbackController::class, 'stats']);
     });
+});
+
+
+Route::prefix('onboarding')->group(function () {
+    Route::middleware('auth:api')->group(function () {
+         Route::patch('/status', [OnboardingController::class, 'update']);
+    });
+
 });

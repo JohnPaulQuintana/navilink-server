@@ -16,6 +16,20 @@ class AuthService
 {
     public function __construct(protected OtpService $otpService) {}
 
+    //  me
+    public function me()
+    {
+        $user = User::get();
+        if (! $user) {
+            throw new ApiException(
+                'Account does not exist',
+                404
+            );
+        }
+
+        return $user;
+    }
+    
     // Registration Service
     public function register(array $data)
     {
